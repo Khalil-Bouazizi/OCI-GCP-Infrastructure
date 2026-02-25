@@ -35,20 +35,58 @@ variable "compartment_defined_tags" {
   default     = {}
 }
 
+variable "network_supernet_cidr" {
+  description = "Global address pool used for dynamic VCN allocation"
+  type        = string
+  default     = "10.0.0.0/8"
+}
+
+variable "vcn_newbits" {
+  description = "Additional CIDR bits to allocate each VCN from network_supernet_cidr"
+  type        = number
+  default     = 8
+}
+
+variable "subnet_newbits" {
+  description = "Additional CIDR bits to allocate subnets from each VCN CIDR (for /24 from /16 use 8)."
+  type        = number
+  default     = 8
+}
+
+variable "public_subnet_netnum" {
+  description = "Subnet index used by cidrsubnet for public subnet allocation."
+  type        = number
+  default     = 1
+}
+
+variable "private_subnet_netnum" {
+  description = "Subnet index used by cidrsubnet for private subnet allocation."
+  type        = number
+  default     = 2
+}
+
 variable "vcns" {
-  description = "Map of VCN definitions. Each VCN creates one public and one private subnet with IGW, NAT, route tables, and security lists."
+  description = "Map of VCN definitions. CIDR/subnet/dns fields can be omitted and are allocated dynamically."
   type = map(object({
-    cidr_block               = string
-    dns_label                = string # enable DNS hostname resolution within your network - When dns_label is defined, OCI automatically creates a private DNS zone for the VCN, allowing instances to communicate using hostnames rather than hard-coded IPs
-    public_subnet_cidr       = string
-    private_subnet_cidr      = string
-    public_subnet_dns_label  = string
-    private_subnet_dns_label = string
+    vcn_index                = optional(number)
+    cidr_block               = optional(string)
+    dns_label                = optional(string)
+    public_subnet_cidr       = optional(string)
+    private_subnet_cidr      = optional(string)
+    public_subnet_dns_label  = optional(string)
+    private_subnet_dns_label = optional(string)
     public_ingress_cidrs     = optional(list(string), ["0.0.0.0/0"])
     public_ingress_tcp_ports = optional(list(number), [22])
     freeform_tags            = optional(map(string), {})
     defined_tags             = optional(map(string), {})
   }))
+
+  validation {
+    condition = alltrue([
+      for vcn in values(var.vcns) : try(vcn.vcn_index, null) == null || try(vcn.vcn_index, -1) >= 0
+    ])
+    error_message = "vcns[*].vcn_index must be >= 0 when provided."
+  }
 }
 
 variable "instances" {

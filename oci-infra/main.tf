@@ -3,11 +3,6 @@
 # Calls modules (VCN, Compute)
 # Connects outputs from one module to inputs of another
 
-data "oci_identity_availability_domains" "ads" { # get availability domains 
-  compartment_id = var.tenancy_ocid
-} # You can access: data.oci_identity_availability_domains.ads.availability_domains[0].name
-
-
 resource "oci_identity_compartment" "this" {
   compartment_id = var.tenancy_ocid # root compartment (tenancy) OCID
   name           = var.compartment_name
@@ -21,7 +16,7 @@ resource "oci_identity_compartment" "this" {
 module "vcn" {
   source = "./modules/vcn"
 
-  for_each = var.vcns # iterate over the map of VCN definitions (2 in this case)
+  for_each = local.vcns_resolved # iterate over normalized VCN definitions
 
   compartment_id = oci_identity_compartment.this.id
   vcn_name       = each.key
@@ -40,9 +35,66 @@ module "vcn" {
   defined_tags  = try(each.value.defined_tags, {})
 }
 
- # Locals in Terraform are like local variables in programming. They allow you to assign a name to an expression, which you can then use multiple times within a module.
 locals {
-   # create 2 local variables here
+  sorted_vcn_keys = sort(keys(var.vcns)) # return all keys of vncs map in list
+
+  vcns_resolved = {
+    for name, vcn in var.vcns :
+    name => {
+      index_resolved = coalesce(try(vcn.vcn_index, null), index(local.sorted_vcn_keys, name))
+
+      cidr_block = coalesce(
+        try(vcn.cidr_block, null),
+        cidrsubnet(var.network_supernet_cidr, var.vcn_newbits, coalesce(try(vcn.vcn_index, null), index(local.sorted_vcn_keys, name)))
+      )
+
+      dns_label = coalesce(
+        try(vcn.dns_label, null),
+        substr(regexreplace(lower(format("vcn%s", name)), "[^a-z0-9]", ""), 0, 15)
+      )
+
+      public_subnet_cidr = coalesce(
+        try(vcn.public_subnet_cidr, null),
+        cidrsubnet(
+          coalesce(
+            try(vcn.cidr_block, null),
+            cidrsubnet(var.network_supernet_cidr, var.vcn_newbits, coalesce(try(vcn.vcn_index, null), index(local.sorted_vcn_keys, name)))
+          ),
+          var.subnet_newbits,
+          var.public_subnet_netnum
+        )
+      )
+
+      private_subnet_cidr = coalesce(
+        try(vcn.private_subnet_cidr, null),
+        cidrsubnet(
+          coalesce(
+            try(vcn.cidr_block, null),
+            cidrsubnet(var.network_supernet_cidr, var.vcn_newbits, coalesce(try(vcn.vcn_index, null), index(local.sorted_vcn_keys, name)))
+          ),
+          var.subnet_newbits,
+          var.private_subnet_netnum
+        )
+      )
+
+      public_subnet_dns_label = coalesce(
+        try(vcn.public_subnet_dns_label, null),
+        substr(regexreplace(lower(format("pub%s", name)), "[^a-z0-9]", ""), 0, 15)
+      )
+
+      private_subnet_dns_label = coalesce(
+        try(vcn.private_subnet_dns_label, null),
+        substr(regexreplace(lower(format("prv%s", name)), "[^a-z0-9]", ""), 0, 15)
+      )
+
+      public_ingress_cidrs     = try(vcn.public_ingress_cidrs, ["0.0.0.0/0"])
+      public_ingress_tcp_ports = try(vcn.public_ingress_tcp_ports, [22])
+      freeform_tags            = try(vcn.freeform_tags, {})
+      defined_tags             = try(vcn.defined_tags, {})
+    }
+  }
+
+
   default_availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
 
   instances_resolved = {

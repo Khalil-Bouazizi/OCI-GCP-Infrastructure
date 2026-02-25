@@ -25,6 +25,7 @@ OCI configuration file : a profile is a named set of configuration settings stor
 	- `key_file` should point to the private key you downloaded (for example, a file stored in `~/.oci`).
 
 ![OCI config example](image-2.png)
+
 user – OCID of the user making the API call
 fingerprint – Fingerprint of the API key
 key_file – Path to the private key file
