@@ -31,7 +31,7 @@ instances = {
     subnet_type         = "public"
     availability_domain = null
     image_ocid          = "ocid1.image.oc1..replace_me"  # A unique identifier (Oracle Cloud Identifier) for a specific operating system image
-    ssh_authorized_keys = ["ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQReplaceMe user@host"]
+    ssh_public_key_path = "***/.ssh/id_rsa.pub" # local machine public key path
     shape               = "VM.Standard.E2.1.Micro"
     assign_public_ip    = true
   }

@@ -96,7 +96,8 @@ variable "instances" {
     subnet_type             = string
     availability_domain     = optional(string)
     image_ocid              = string
-    ssh_authorized_keys     = list(string)
+    ssh_authorized_keys     = optional(list(string), [])
+    ssh_public_key_path     = optional(string)
     shape                   = optional(string, "VM.Standard.E2.1.Micro")
     assign_public_ip        = optional(bool, true)
     boot_volume_size_in_gbs = optional(number)
@@ -111,5 +112,12 @@ variable "instances" {
       for instance in values(var.instances) : contains(["public", "private"], lower(instance.subnet_type))
     ])
     error_message = "Each instance subnet_type must be either 'public' or 'private'."
+  }
+
+  validation {
+    condition = alltrue([
+      for instance in values(var.instances) : length(try(instance.ssh_authorized_keys, [])) > 0 || try(instance.ssh_public_key_path, null) != null
+    ])
+    error_message = "Each instance must define at least one SSH key via ssh_authorized_keys or ssh_public_key_path."
   }
 }

@@ -104,7 +104,7 @@ locals {
       subnet_id           = lower(instance.subnet_type) == "public" ? module.vcn[instance.vcn_key].public_subnet_id : module.vcn[instance.vcn_key].private_subnet_id
 
       image_ocid              = instance.image_ocid
-      ssh_authorized_keys     = instance.ssh_authorized_keys
+      ssh_authorized_keys     = length(try(instance.ssh_authorized_keys, [])) > 0 ? instance.ssh_authorized_keys : [trimspace(file(instance.ssh_public_key_path))]
       shape                   = try(instance.shape, "VM.Standard.E2.1.Micro")
       assign_public_ip        = try(instance.assign_public_ip, true)
       boot_volume_size_in_gbs = try(instance.boot_volume_size_in_gbs, null)
