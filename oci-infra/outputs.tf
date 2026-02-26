@@ -1,6 +1,6 @@
 output "compartment_id" {
   description = "Created compartment OCID."
-  value       = oci_identity_compartment.this.id
+  value       = oci_identity_compartment.oci_identity_compartment_details.id
 }
 
 output "vcn_ids" {

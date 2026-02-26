@@ -1,4 +1,4 @@
-resource "oci_core_instance" "this" {
+resource "oci_core_instance" "oci_instance_details" {
   for_each = var.instances
 
   availability_domain = each.value.availability_domain

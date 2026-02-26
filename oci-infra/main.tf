@@ -3,7 +3,7 @@
 # Calls modules (VCN, Compute)
 # Connects outputs from one module to inputs of another
 
-resource "oci_identity_compartment" "this" {
+resource "oci_identity_compartment" "oci_identity_compartment_details" {
   compartment_id = var.tenancy_ocid # root compartment (tenancy) OCID
   name           = var.compartment_name
   description    = var.compartment_description
@@ -18,7 +18,7 @@ module "vcn" {
 
   for_each = local.vcns_resolved # iterate over normalized VCN definitions
 
-  compartment_id = oci_identity_compartment.this.id
+  compartment_id = oci_identity_compartment.oci_identity_compartment_details.id
   vcn_name       = each.key
   cidr_block     = each.value.cidr_block
   dns_label      = each.value.dns_label
@@ -119,6 +119,6 @@ locals {
 module "compute" {
   source = "./modules/compute"
 
-  compartment_id = oci_identity_compartment.this.id
+  compartment_id = oci_identity_compartment.oci_identity_compartment_details.id
   instances      = local.instances_resolved
 }
