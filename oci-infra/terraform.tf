@@ -1,3 +1,5 @@
+# controls provider plugin source/version
+
 terraform {
   required_providers {
     oci = {

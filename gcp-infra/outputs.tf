@@ -36,3 +36,22 @@ output "instance_ids" {
 	description = "Compute module outputs by instance key."
 	value       = module.compute.instances
 }
+
+output "terraform_state_bucket_name" {
+	description = "GCS bucket used for Terraform remote state when create_state_bucket=true."
+	value       = var.create_state_bucket ? module.object_storage_bucket[0].name : null
+}
+
+output "terraform_state_bucket_url" {
+	description = "URL of the GCS bucket used for Terraform state."
+	value       = var.create_state_bucket ? module.object_storage_bucket[0].url : null
+}
+
+output "terraform_backend_init_command" {
+	description = "Run this command after initial apply to migrate local state to GCS backend."
+	value = var.create_state_bucket ? format(
+		"terraform init -migrate-state -reconfigure -backend-config=\"bucket=%s\" -backend-config=\"prefix=%s\"",
+		module.object_storage_bucket[0].name,
+		var.state_bucket_prefix
+	) : null
+}

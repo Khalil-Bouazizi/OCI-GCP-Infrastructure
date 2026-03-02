@@ -108,7 +108,7 @@ module "network" {
 	service_gateway_cidr      = each.value.service_gateway_cidr
 
 	depends_on = [
-		google_project.this,
+		google_project.project,
 		google_project_service.required
 	]
 }
@@ -121,5 +121,24 @@ module "compute" {
 
 	depends_on = [
 		module.network
+	]
+}
+
+module "object_storage_bucket" {
+	source = "./modules/object-storage-bucket"
+	count  = var.create_state_bucket ? 1 : 0
+
+	name       = coalesce(var.state_bucket_name, "${local.effective_project_id}-tfstate")
+	project_id = local.effective_project_id
+	location   = var.state_bucket_location
+
+	labels = {
+		purpose     = "terraform-state"
+		environment = "shared"
+	}
+
+	depends_on = [
+		google_project.project,
+		google_project_service.required
 	]
 }

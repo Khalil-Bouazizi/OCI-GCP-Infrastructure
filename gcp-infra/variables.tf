@@ -71,8 +71,33 @@ variable "enable_apis" {
 	description = "APIs to enable in the target project."
 	type        = list(string)
 	default = [
-		"compute.googleapis.com"
+		"compute.googleapis.com",
+		"storage.googleapis.com"
 	]
+}
+
+variable "create_state_bucket" {
+	description = "Whether to create a GCS bucket for Terraform remote state."
+	type        = bool
+	default     = true
+}
+
+variable "state_bucket_name" {
+	description = "Name of the GCS bucket used for Terraform state. Must be globally unique."
+	type        = string
+	default     = null
+}
+
+variable "state_bucket_location" {
+	description = "Location for the Terraform state bucket."
+	type        = string
+	default     = "EU"
+}
+
+variable "state_bucket_prefix" {
+	description = "Prefix/path inside the state bucket for this stack state file."
+	type        = string
+	default     = "gcp-infra/state"
 }
 
 variable "network_supernet_cidr" {

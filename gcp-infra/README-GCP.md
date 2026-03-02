@@ -2,6 +2,7 @@
 
 This folder creates, step by step:
 - Project (without creating folder)
+- Terraform state bucket (optional bootstrap)
 - VPC network
 - Public and private subnets
 - Firewall rules
@@ -21,6 +22,7 @@ Edit [gcp-infra-values.auto.tfvars](gcp-infra-values.auto.tfvars):
 - `organization_id`
 - `billing_account`
 - `project_id`
+- `create_state_bucket`, `state_bucket_name`, `state_bucket_location`, `state_bucket_prefix`
 - `instances[*].ssh_public_key_path` (for example `~/.ssh/id_rsa.pub`)
 
 Do not hardcode SSH keys in Terraform files. The key is loaded from your local `.pub` file path.
@@ -41,6 +43,14 @@ terraform validate
 terraform plan -out tfplan
 terraform apply tfplan
 ```
+
+After first apply, migrate local state to the new GCS backend bucket:
+
+```powershell
+terraform init -migrate-state -reconfigure -backend-config="bucket=<your_state_bucket_name>" -backend-config="prefix=gcp-infra/state"
+```
+
+You can also read the generated `terraform_backend_init_command` output and run it directly.
 
 ## 4) What maps from OCI to GCP
 

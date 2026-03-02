@@ -34,38 +34,76 @@ region – OCI region (e.g., us-ashburn-1)
 
 ## Terraform deployment (modular)
 
-This folder now provisions:
-- A root-level compartment named `oci-infra-test` directly under the tenancy root.
-- Two VCNs (from `vcns` map input), each with:
-	- 1 public subnet
-	- 1 private subnet
-	- 1 Internet Gateway (IGW)
-	- 1 NAT Gateway
-	- route tables and ingress/egress security rules
-- E2 compute instance(s) from the `instances` map.
+This folder provisions a complete OCI hub-and-spoke architecture:
+
+### Infrastructure Components
+
+- **Compartment**: Root-level compartment directly under tenancy root
+- **Network**: Hub-and-spoke topology with DRG
+  - 1 DMZ VCN (with Internet Gateway)
+  - 2 Spoke VCNs
+  - DRG with VCN attachments
+  - Route tables with spoke↔DMZ routing policy
+  - Security lists with ingress/egress rules
+  - 3 subnets (dmz-services, spoke-a-workload, spoke-b-workload)
+- **Compute**: E2 instances across subnets
+- **Bastion**: Bastion host in DMZ VCN (optional, enabled by default)
+- **State Storage**: Object Storage bucket for Terraform remote state (optional, enabled by default)
 
 ### Modules
 
-- `modules/vcn`: reusable network module for one VCN stack.
-- `modules/compute`: reusable instance module.
+- `modules/vcn`: wrapper around oracle-terraform-modules/vcn/oci (hub-spoke pattern)
+- `modules/drg`: wrapper around oracle-terraform-modules/drg/oci
+- `modules/compute`: reusable instance module
+- `modules/object-storage-bucket`: OCI Object Storage bucket for state files
+- **Bastion**: oracle-terraform-modules/bastion/oci (called directly from root)
 
-### Run
+### Deployment Steps
 
 From `oci-infra/`:
 
-1. Fill values in `terraform.tfvars`:
-	 - `tenancy_ocid`
-	 - `instances[*].image_ocid`
-	 - `instances[*].ssh_authorized_keys`
-2. Initialize and plan:
+1. **Configure values** in `oci-infra-values.auto.tfvars`:
+   - `tenancy_ocid`
+   - `instances[*].image_ocid`
+   - `instances[*].ssh_public_key_path`
+   - `bastion_ssh_public_key_path`
+   - Optionally set `state_bucket_name`
+
+2. **Initialize Terraform** (first time):
 
 ```bash
 terraform init
 terraform plan
 ```
 
-3. Apply:
+3. **Apply infrastructure**:
 
 ```bash
 terraform apply
 ```
+
+4. **Migrate to remote state** (after first apply):
+
+After the Object Storage bucket is created, migrate your local state to remote backend:
+
+```bash
+# Get the backend init command from outputs
+terraform output terraform_backend_init_command
+
+# Run the command (replace <your-region> with your OCI region, e.g., us-ashburn-1)
+terraform init -migrate-state -reconfigure \
+  -backend-config="address=https://objectstorage.<your-region>.oraclecloud.com/n/<namespace>/b/<bucket>/o/oci-infra/state"
+```
+
+You'll need to set OCI authentication for the backend:
+- `LOCK_ADDRESS`: same as `address` with `/lock` suffix
+- `UNLOCK_ADDRESS`: same as `address` with `/unlock` suffix  
+- Credentials: OCI CLI profile or environment variables
+
+### Outputs
+
+The configuration outputs:
+- Compartment, VCN, subnet, DRG OCIDs
+- Instance OCIDs
+- Bastion public IP
+- State bucket details and backend init command

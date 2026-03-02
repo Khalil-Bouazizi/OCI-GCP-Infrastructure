@@ -13,8 +13,14 @@ region = "europe-west1"
 zone   = "europe-west1-b"
 
 enable_apis = [
-	"compute.googleapis.com"
+	"compute.googleapis.com",
+	"storage.googleapis.com"
 ]
+
+create_state_bucket   = true
+state_bucket_name     = "infra-oci-gcp-demo-001-tfstate"
+state_bucket_location = "EU"
+state_bucket_prefix   = "gcp-infra/state"
 
 network_supernet_cidr = "10.0.0.0/8"
 vpc_newbits           = 8
