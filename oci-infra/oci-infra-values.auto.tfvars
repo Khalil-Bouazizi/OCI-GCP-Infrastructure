@@ -1,7 +1,7 @@
 # terraform.tfvars - replace the values with your own configuration
 
 tenancy_ocid = "ocid1.tenancy.oc1.." # replace with your tenancy OCID
-region       = "us-ashburn-1" # replace with your OCI region
+region       = "eu-paris-1" # replace with your OCI region
 
 compartment_name          = "oci-infra"
 compartment_enable_delete = true
@@ -20,11 +20,6 @@ vcns = {
     role      = "spoke"
     vcn_index = 20
   }
-
-  spoke-b = {
-    role      = "spoke"
-    vcn_index = 30
-  }
 }
 
 subnets = {
@@ -37,42 +32,22 @@ subnets = {
     internet_access          = true
   }
 
-  dmz-services = {
-    vcn_key                  = "dmz"
-    subnet_netnum            = 1
-    ingress_cidrs            = ["0.0.0.0/0"]
-    ingress_tcp_ports        = [443]
-    assign_public_ip_on_vnic = true
-    internet_access          = true
-  }
-
   spoke-a-workload = {
-    vcn_key       = "spoke-a"
-    subnet_netnum = 1
-  }
-
-  spoke-b-workload = {
-    vcn_key       = "spoke-b"
-    subnet_netnum = 1
+    vcn_key                  = "spoke-a"
+    subnet_netnum            = 1
+    ingress_cidrs            = ["10.10.0.0/16"]
+    ingress_tcp_ports        = [22]
+    assign_public_ip_on_vnic = false
+    internet_access          = true
   }
 }
 
 instances = {
   bastion-host = {
     subnet_key          = "dmz-management"
-    availability_domain = null # availability_domain = null means main locals will auto-pick first AD from data.tf file
-    fault_domain        = null
-    image_ocid          = "ocid1.image.oc1..replace_me"
-    ssh_public_key_path = "***/id_rsa.pub" # replace with the path to your SSH public key file (for example ~/.ssh/id_rsa.pub)
-    shape               = "VM.Standard.E2.1.Micro"
-    assign_public_ip    = true
-  }
-
-  service-vm = {
-    subnet_key          = "dmz-services"
     availability_domain = null
     fault_domain        = null
-    image_ocid          = "ocid1.image.oc1..replace_me" # The OCID of the image for a specific operating system image
+    image_ocid          = "ocid1.image.oc1..replace_me"
     ssh_public_key_path = "***/id_rsa.pub"
     shape               = "VM.Standard.E2.1.Micro"
     assign_public_ip    = true
@@ -85,17 +60,7 @@ instances = {
     image_ocid          = "ocid1.image.oc1..replace_me"
     ssh_public_key_path = "***/id_rsa.pub"
     shape               = "VM.Standard.E2.1.Micro"
-    assign_public_ip    = false # private subnet 
-  }
-
-  spoke-b-instance = {
-    subnet_key          = "spoke-b-workload"
-    availability_domain = null
-    fault_domain        = null
-    image_ocid          = "ocid1.image.oc1..replace_me"
-    ssh_public_key_path = "***/id_rsa.pub"
-    shape               = "VM.Standard.E2.1.Micro"
-    assign_public_ip    = false # private subnet
+    assign_public_ip    = false
   }
 }
 

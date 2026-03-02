@@ -8,56 +8,36 @@ Internet
 ┌─────────────────┐
 │   DMZ VCN       │ (10.10.0.0/16)
 │  - IGW enabled  │
-│  - Public IPs   │
+│  - Bastion VM   │ (public subnet/public IP)
 └────────┬────────┘
          │
     ┌────┴────┐ DRG (Hub)
     │         │
-┌───┴──┐   ┌──┴───┐
-│Spoke │   │Spoke │
-│  A   │   │  B   │
-└──────┘   └──────┘
-(10.20.x.x) (10.30.x.x)
+ ┌──┴─────────┐
+ │ Spoke-A    │ (10.20.0.0/16)
+ │ - 1 VM     │ (private subnet/no public IP)
+ └────────────┘
 ```
 
 ## Routing Rules Logic
 
 ### DMZ Subnet Routes:
-- ✅ 0.0.0.0/0 → Internet Gateway (for outbound internet)
+- ✅ 0.0.0.0/0 → Internet Gateway (internet edge)
 - ✅ 10.20.0.0/16 → DRG (to Spoke-A)
-- ✅ 10.30.0.0/16 → DRG (to Spoke-B)
 
 ### Spoke-A Subnet Routes:
-- ✅ 10.10.0.0/16 → DRG (to DMZ only)
-- ❌ NO route to Spoke-B (10.30.0.0/16)
-
-### Spoke-B Subnet Routes:
-- ✅ 10.10.0.0/16 → DRG (to DMZ only)
-- ❌ NO route to Spoke-A (10.20.0.0/16)
+- ✅ 10.10.0.0/16 → DRG (to DMZ)
+- ✅ 0.0.0.0/0 → DRG (transit to DMZ internet edge)
 
 ## Code Verification
 
-From `main.tf` lines 133-152:
+Spoke private subnet default route to DRG in `main.tf`:
 
 ```terraform
 dynamic "route_rules" {
-  for_each = [
-    for vcn_name, vcn_value in local.vcns_resolved : {
-      destination = vcn_value.cidr_block
-    }
-    if (
-      # DMZ → Spoke routes
-      local.vcns_resolved[each.value.vcn_key].role == "dmz" &&
-      vcn_name != each.value.vcn_key &&
-      vcn_value.role == "spoke"
-    ) || (
-      # Spoke → DMZ routes ONLY (not spoke-to-spoke)
-      local.vcns_resolved[each.value.vcn_key].role == "spoke" &&
-      vcn_value.role == "dmz"
-    )
-  ]
+  for_each = local.vcns_resolved[each.value.vcn_key].role == "spoke" && each.value.internet_access && !each.value.assign_public_ip_on_vnic ? [1] : []
   content {
-    destination       = route_rules.value.destination
+    destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
     network_entity_id = module.drg_hub.drg_id
   }
@@ -67,39 +47,37 @@ dynamic "route_rules" {
 ## Test After Deployment
 
 ```bash
-# 1. SSH to DMZ instance
-ssh -i ~/.ssh/id_rsa opc@<dmz-instance-public-ip>
+# 1. Verify route tables in OCI console
+# - dmz-management: 0.0.0.0/0 -> IGW and 10.20.0.0/16 -> DRG
+# - spoke-a-workload: 10.10.0.0/16 -> DRG and 0.0.0.0/0 -> DRG
 
-# 2. From DMZ, test connectivity to spoke-a (should work via DRG)
-ping <spoke-a-instance-private-ip>
+# 2. SSH from your machine to bastion (DMZ public IP)
+ssh -i ~/.ssh/id_rsa opc@<bastion-public-ip>
 
-# 3. SSH to spoke-a via bastion/DMZ
-ssh -i ~/.ssh/id_rsa -J <bastion-ip> opc@<spoke-a-private-ip>
+# 3. From bastion, SSH to private spoke VM
+ssh -i ~/.ssh/id_rsa opc@<spoke-a-private-ip>
 
-# 4. From spoke-a, try to reach spoke-b directly (should FAIL)
-ping <spoke-b-instance-private-ip>  # ❌ NO ROUTE
-
-# 5. From spoke-a, reach DMZ (should work)
-ping <dmz-instance-private-ip>  # ✅ Works
+# 4. From spoke-a VM, verify outbound internet
+curl -I https://example.com
 ```
 
 ## Expected Behavior
 
 ✅ **Allowed:**
-- Internet → DMZ (via IGW)
-- DMZ → Spoke-A (via DRG)
-- DMZ → Spoke-B (via DRG)
-- Spoke-A → DMZ (via DRG)
-- Spoke-B → DMZ (via DRG)
+- Spoke-A ↔ DMZ private connectivity through DRG
+- Spoke-A default egress is forced through DRG toward DMZ edge
+- SSH inbound to Spoke-A only from DMZ CIDR (bastion path)
+- SSH inbound from internet to bastion only (TCP/22)
 
-❌ **Blocked:**
-- Spoke-A → Spoke-B (no route exists)
-- Spoke-B → Spoke-A (no route exists)
-- Spoke → Internet (no IGW/NAT in spoke VCNs)
+⚠️ **Important:**
+- Keep spoke VM without public IP to enforce bastion-only administration.
+- Hub-spoke DRG is used for inter-VCN private routing and for spoke default-route transit to DMZ.
+- This design enforces the path `spoke private subnet -> DRG -> DMZ -> IGW` (no NAT gateway resource).
 
 ## Conclusion
 
-The current configuration **correctly implements hub-and-spoke** with:
-- Centralized internet egress via DMZ
-- Isolated spoke networks (no east-west traffic)
-- All inter-spoke communication must transit through DMZ
+This simplified test layout provides:
+- One spoke workload VM for validation
+- DRG-centric inter-VCN routing
+- Bastion-only access to private spoke VM
+- No-NAT hub-spoke transit routing through DRG/DMZ

@@ -61,6 +61,16 @@ locals {
     }
   }
 
+  vcn_keys_with_internet_access = toset([
+    for subnet in values(local.subnets_resolved) : subnet.vcn_key
+    if subnet.internet_access
+  ])
+
+  vcn_keys_with_public_internet_access = toset([
+    for subnet in values(local.subnets_resolved) : subnet.vcn_key
+    if subnet.internet_access && subnet.assign_public_ip_on_vnic
+  ])
+
   default_availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
   default_fault_domain        = try(data.oci_identity_fault_domains.default_ad_fds.fault_domains[0].name, null)
 
@@ -96,7 +106,7 @@ module "vcn" {
   compartment_id = oci_identity_compartment.oci_identity_compartment_details.id
   label_prefix   = var.compartment_name
 
-  create_internet_gateway  = each.value.role == "dmz" # only create internet gateway for DMZ VCN
+  create_internet_gateway  = each.value.role == "dmz" || contains(local.vcn_keys_with_public_internet_access, each.key)
   create_nat_gateway       = false
   create_service_gateway   = false
   lockdown_default_seclist = true
@@ -140,12 +150,16 @@ resource "oci_core_route_table" "workload_rt" {
         destination = vcn_value.cidr_block
       }
       if(
-        local.vcns_resolved[each.value.vcn_key].role == "dmz" &&
         vcn_name != each.value.vcn_key &&
+        local.vcns_resolved[each.value.vcn_key].role == "dmz" &&
         vcn_value.role == "spoke"
         ) || (
         local.vcns_resolved[each.value.vcn_key].role == "spoke" &&
-        vcn_value.role == "dmz"
+        vcn_name != each.value.vcn_key &&
+        (
+          vcn_value.role == "dmz" ||
+          vcn_value.role == "spoke"
+        )
       )
     ]
     content {
@@ -161,6 +175,24 @@ resource "oci_core_route_table" "workload_rt" {
       destination       = "0.0.0.0/0"
       destination_type  = "CIDR_BLOCK"
       network_entity_id = module.vcn[each.value.vcn_key].internet_gateway_id
+    }
+  }
+
+  dynamic "route_rules" {
+    for_each = local.vcns_resolved[each.value.vcn_key].role == "spoke" && each.value.internet_access && each.value.assign_public_ip_on_vnic ? [1] : []
+    content {
+      destination       = "0.0.0.0/0"
+      destination_type  = "CIDR_BLOCK"
+      network_entity_id = module.vcn[each.value.vcn_key].internet_gateway_id
+    }
+  }
+
+  dynamic "route_rules" {
+    for_each = local.vcns_resolved[each.value.vcn_key].role == "spoke" && each.value.internet_access && !each.value.assign_public_ip_on_vnic ? [1] : []
+    content {
+      destination       = "0.0.0.0/0"
+      destination_type  = "CIDR_BLOCK"
+      network_entity_id = module.drg_hub.drg_id
     }
   }
 
@@ -194,6 +226,30 @@ resource "oci_core_security_list" "workload_sl" {
         min = ingress_security_rules.value.port
         max = ingress_security_rules.value.port
       }
+    }
+  }
+
+  dynamic "ingress_security_rules" {
+    for_each = [
+      for vcn_name, vcn_value in local.vcns_resolved : {
+        source_cidr = vcn_value.cidr_block
+      }
+      if(
+        vcn_name != each.value.vcn_key &&
+        local.vcns_resolved[each.value.vcn_key].role == "dmz" &&
+        vcn_value.role == "spoke"
+        ) || (
+        local.vcns_resolved[each.value.vcn_key].role == "spoke" &&
+        vcn_name != each.value.vcn_key &&
+        (
+          vcn_value.role == "dmz" ||
+          vcn_value.role == "spoke"
+        )
+      )
+    ]
+    content {
+      source   = ingress_security_rules.value.source_cidr
+      protocol = "all"
     }
   }
 

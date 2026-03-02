@@ -43,11 +43,11 @@ This folder provisions a complete OCI hub-and-spoke architecture:
   - 1 DMZ VCN (with Internet Gateway)
   - 2 Spoke VCNs
   - DRG with VCN attachments
-  - Route tables with spoke↔DMZ routing policy
+  - Route tables with spoke↔DMZ and spoke↔spoke routing via DRG
   - Security lists with ingress/egress rules
-  - 3 subnets (dmz-services, spoke-a-workload, spoke-b-workload)
+  - 4 subnets (dmz-management, dmz-services, spoke-a-workload, spoke-b-workload)
 - **Compute**: E2 instances across subnets
-- **Bastion**: Bastion host in DMZ VCN (optional, enabled by default)
+- **Bastion**: Bastion host VM in DMZ management subnet
 - **State Storage**: Object Storage bucket for Terraform remote state (optional, enabled by default)
 
 ### Modules
@@ -56,7 +56,6 @@ This folder provisions a complete OCI hub-and-spoke architecture:
 - `modules/drg`: wrapper around oracle-terraform-modules/drg/oci
 - `modules/compute`: reusable instance module
 - `modules/object-storage-bucket`: OCI Object Storage bucket for state files
-- **Bastion**: oracle-terraform-modules/bastion/oci (called directly from root)
 
 ### Deployment Steps
 
@@ -66,7 +65,6 @@ From `oci-infra/`:
    - `tenancy_ocid`
    - `instances[*].image_ocid`
    - `instances[*].ssh_public_key_path`
-   - `bastion_ssh_public_key_path`
    - Optionally set `state_bucket_name`
 
 2. **Initialize Terraform** (first time):
@@ -105,5 +103,5 @@ You'll need to set OCI authentication for the backend:
 The configuration outputs:
 - Compartment, VCN, subnet, DRG OCIDs
 - Instance OCIDs
-- Bastion public IP
+- Bastion host instance ID
 - State bucket details and backend init command
