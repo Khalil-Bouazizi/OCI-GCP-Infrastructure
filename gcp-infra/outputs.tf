@@ -5,36 +5,39 @@ output "folder_name" {
 
 output "project_id" {
 	description = "Project ID where resources are created."
-	value       = local.effective_project_id
+	value       = var.project_id
 }
 
 output "vpc_self_links" {
 	description = "VPC self links by VPC key."
 	value = {
-		for name, network_module in module.network :
-		name => network_module.vpc_self_link
+		for name, vpc in local.vpcs_resolved :
+		name => format("projects/%s/global/networks/%s", var.project_id, name)
 	}
 }
 
 output "public_subnet_self_links" {
 	description = "Public subnet self links by VPC key."
 	value = {
-		for name, network_module in module.network :
-		name => network_module.public_subnet_self_link
+		for name, vpc in local.vpcs_resolved :
+		name => vpc.subnet_type == "public" ? format("projects/%s/regions/%s/subnetworks/%s", var.project_id, var.region, vpc.subnet_name) : null
 	}
 }
 
 output "private_subnet_self_links" {
 	description = "Private subnet self links by VPC key."
 	value = {
-		for name, network_module in module.network :
-		name => network_module.private_subnet_self_link
+		for name, vpc in local.vpcs_resolved :
+		name => vpc.subnet_type == "private" ? format("projects/%s/regions/%s/subnetworks/%s", var.project_id, var.region, vpc.subnet_name) : null
 	}
 }
 
 output "instance_ids" {
-	description = "Compute module outputs by instance key."
-	value       = module.compute.instances
+	description = "Instance keys by instance name."
+	value = {
+		for name in keys(local.instances_resolved) :
+		name => name
+	}
 }
 
 output "vpc_peering_names" {

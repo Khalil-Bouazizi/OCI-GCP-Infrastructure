@@ -4,21 +4,22 @@ create_folder = false
 folder_name   = "infra-shared"
 folder_id     = null
 
-create_project   = true
-project_id       = "infra-oci-gcp-demo-001"
-project_name     = "infra-oci-gcp-demo"
-billing_account  = "000000-000000-000000"
+create_project   = false
+project_id       = "project-id"
+project_name     = "project-name-already-exists"
+billing_account  = null
 
 region = "europe-west1"
 zone   = "europe-west1-b"
 
+# APIs to enable in the target project, you must explicitly enable them before you can use them.
 enable_apis = [
-	"compute.googleapis.com",
-	"storage.googleapis.com"
+	"compute.googleapis.com", # can now create VMs
+	"storage.googleapis.com" # can now use Cloud Storage
 ]
 
 create_state_bucket   = true
-state_bucket_name     = "infra-oci-gcp-demo-001-tfstate"
+state_bucket_name     = "replace-with-existing-project-id-tfstate"
 state_bucket_location = "EU"
 state_bucket_prefix   = "gcp-infra/state"
 
@@ -46,7 +47,7 @@ vpcs = {
 		subnet_cidr               = "10.0.1.0/24"
 		public_ingress_cidrs      = []
 		public_ingress_tcp_ports  = []
-		enable_private_googleapis = true
+		enable_private_googleapis = true # allows instances in this VPC to access Google APIs privately without needing public IPs
 	}
 }
 
@@ -58,7 +59,7 @@ instances = {
 		image            = "debian-cloud/debian-12"
 		assign_public_ip = true
 		network_tags     = ["public", "hub"]
-		ssh_username        = "replace_user"
+		ssh_username        = "username-here"
 		ssh_public_key_path = "~/.ssh/id_rsa.pub"
 	}
 }

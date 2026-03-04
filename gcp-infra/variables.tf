@@ -46,7 +46,7 @@ variable "project_name" {
 variable "create_project" {
 	description = "Whether to create the project in the selected folder."
 	type        = bool
-	default     = true
+	default     = false
 }
 
 variable "billing_account" {
