@@ -1,36 +1,36 @@
-module "firewall_rules_module" {
-  source = "terraform-google-modules/network/google//modules/firewall-rules"
+resource "google_compute_firewall" "private_internal" {
+  name        = "${var.vpc_name}-private-internal"
+  description = "Allow internal east-west tcp and icmp between peered VPCs"
+  project     = var.project_id
+  network     = var.vpc_name
 
-  project_id   = var.project_id
-  network_name = var.vpc_name
+  direction     = "INGRESS"
+  source_ranges = distinct(concat([var.cidr_block], var.peer_cidrs))
+  target_tags   = ["private"]
 
-  ingress_rules = concat(
-    [
-      {
-        name          = "${var.vpc_name}-private-internal"
-        description   = "Allow internal east-west traffic in private subnet"
-        source_ranges = [var.cidr_block]
-        target_tags   = ["private"]
-        allow = [
-          { protocol = "tcp" },
-          { protocol = "udp" },
-          { protocol = "icmp" }
-        ]
-      }
-    ],
-    [
-      for port in var.public_ingress_tcp_ports : {
-        name          = "${var.vpc_name}-public-ingress-tcp-${port}"
-        description   = "Allow public ingress on TCP ${port}"
-        source_ranges = var.public_ingress_cidrs
-        target_tags   = ["public"]
-        allow = [
-          {
-            protocol = "tcp"
-            ports    = [tostring(port)]
-          }
-        ]
-      }
-    ]
-  )
+  allow {
+    protocol = "tcp"
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+}
+
+resource "google_compute_firewall" "public_ssh" {
+  count = var.subnet_type == "public" && contains(var.public_ingress_tcp_ports, 22) ? 1 : 0
+
+  name        = "${var.vpc_name}-public-ingress-ssh"
+  description = "Allow SSH to public-tagged instances"
+  project     = var.project_id
+  network     = var.vpc_name
+
+  direction     = "INGRESS"
+  source_ranges = var.public_ingress_cidrs
+  target_tags   = ["public"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
 }

@@ -3,11 +3,11 @@ output "vpc_self_link" {
 }
 
 output "public_subnet_self_link" {
-	value = format("projects/%s/regions/%s/subnetworks/%s", var.project_id, var.region, var.public_subnet_name)
+	value = var.subnet_type == "public" ? format("projects/%s/regions/%s/subnetworks/%s", var.project_id, var.region, var.subnet_name) : null
 }
 
 output "private_subnet_self_link" {
-	value = format("projects/%s/regions/%s/subnetworks/%s", var.project_id, var.region, var.private_subnet_name)
+	value = var.subnet_type == "private" ? format("projects/%s/regions/%s/subnetworks/%s", var.project_id, var.region, var.subnet_name) : null
 }
 
 output "subnets" {

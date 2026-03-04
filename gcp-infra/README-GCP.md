@@ -1,39 +1,33 @@
-# GCP Infrastructure (Equivalent to OCI stack)
+# GCP Infrastructure (Hub/Spoke with VPC Peering)
 
-This folder creates, step by step:
-- Project (without creating folder)
-- Terraform state bucket (optional bootstrap)
-- VPC network
-- Public and private subnets
-- Firewall rules
-- Routes (public default, private default, private Google APIs route)
-- Compute Engine instances in public/private subnet
+This stack creates:
+- Existing-organization project (no folder creation by default)
+- Optional GCS bucket for Terraform remote state
+- Hub VPC (`10.0.0.0/24`) and Spoke-A VPC (`10.0.1.0/24`)
+- Bidirectional VPC peering (Hub <-> Spoke-A)
+- One VM in Hub only (`vm-hub`, internal `10.0.0.10`, ephemeral external IP)
+- Firewall rules:
+    - SSH (`tcp/22`) inbound to Hub VM from allowed CIDRs
+    - East-west `tcp` and `icmp` between peered VPC CIDRs
 
 ## 1) Prerequisites
 
 - Terraform >= 1.5
 - GCP credentials configured (`gcloud auth application-default login`)
 - Existing GCP Organization ID
-- Billing account ID (if creating project)
+- Billing account ID
 
-## 2) Configure values
+## 2) Configuration
 
 Edit [gcp-infra-values.auto.tfvars](gcp-infra-values.auto.tfvars):
-- `organization_id`
-- `billing_account`
-- `project_id`
-- `create_state_bucket`, `state_bucket_name`, `state_bucket_location`, `state_bucket_prefix`
-- `instances[*].ssh_public_key_path` (for example `~/.ssh/id_rsa.pub`)
-
-Do not hardcode SSH keys in Terraform files. The key is loaded from your local `.pub` file path.
-
-Project-only mode is the default in this repository:
+- `organization_id`, `billing_account`, `project_id`
 - `create_folder = false`
-- `create_project = true`
+- `vpcs` and `instances` according to Hub/Spoke design
+- `instances[*].ssh_public_key_path` (example `~/.ssh/id_rsa.pub`)
 
-If you want the project under an existing folder, set `folder_id`.
+Do not hardcode SSH keys in Terraform files.
 
-## 3) Deploy step by step
+## 3) Deploy
 
 From [gcp-infra](.):
 
@@ -44,43 +38,22 @@ terraform plan -out tfplan
 terraform apply tfplan
 ```
 
-After first apply, migrate local state to the new GCS backend bucket:
+## 4) State Bucket Migration (Optional)
+
+If `create_state_bucket = true`, migrate local state to GCS after first apply:
 
 ```powershell
 terraform init -migrate-state -reconfigure -backend-config="bucket=<your_state_bucket_name>" -backend-config="prefix=gcp-infra/state"
 ```
 
-You can also read the generated `terraform_backend_init_command` output and run it directly.
+Or run the generated output command: `terraform_backend_init_command`.
 
-## 4) What maps from OCI to GCP
+## 5) Module Layout
 
-- OCI compartment -> GCP folder/project
-- OCI VCN -> GCP VPC
-- OCI public/private subnet -> GCP public/private subnet
-- OCI route tables -> GCP routes
-- OCI internet gateway -> GCP default internet gateway route
-- OCI NAT gateway -> GCP Cloud NAT
-- OCI service gateway -> GCP private Google APIs access route + Private Google Access
-- OCI compute instance -> GCP Compute Engine instance
-
-## 5) Module source (Terraform Registry via local wrappers)
-
-Root [main.tf](main.tf) calls local wrappers:
-- [modules/vpc/main.tf](modules/vpc/main.tf)
-- [modules/compute/main.tf](modules/compute/main.tf)
-
-Inside those wrapper files, the Terraform Registry modules are imported directly:
-- `terraform-google-modules/network/google`
-- `terraform-google-modules/cloud-router/google`
-- `terraform-google-modules/vm/google//modules/compute_instance`
-
-`version` is intentionally omitted in wrapper files, so Terraform installs the latest module release during `terraform init`.
-
-If you want Git source instead, replace the same `source` values in [main.tf](main.tf) with your Git URLs.
-
-After changing any module source/version:
-
-```powershell
-terraform init -upgrade
-terraform plan
-```
+- Root orchestrator: [main.tf](main.tf)
+- Network wrapper: [modules/network/main.tf](modules/network/main.tf)
+    - [modules/network/submodules/vpc/main.tf](modules/network/submodules/vpc/main.tf)
+    - [modules/network/submodules/subnets/main.tf](modules/network/submodules/subnets/main.tf)
+    - [modules/network/submodules/routes/main.tf](modules/network/submodules/routes/main.tf)
+    - [modules/network/submodules/firewall-rules/main.tf](modules/network/submodules/firewall-rules/main.tf)
+- Compute wrapper: [modules/compute/main.tf](modules/compute/main.tf)

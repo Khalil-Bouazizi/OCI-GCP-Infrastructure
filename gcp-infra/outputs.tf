@@ -37,6 +37,14 @@ output "instance_ids" {
 	value       = module.compute.instances
 }
 
+output "vpc_peering_names" {
+	description = "Hub/Spoke VPC peering resource names."
+	value = {
+		hub_to_spoke = google_compute_network_peering.hub_to_spoke.name
+		spoke_to_hub = google_compute_network_peering.spoke_to_hub.name
+	}
+}
+
 output "terraform_state_bucket_name" {
 	description = "GCS bucket used for Terraform remote state when create_state_bucket=true."
 	value       = var.create_state_bucket ? module.object_storage_bucket[0].name : null

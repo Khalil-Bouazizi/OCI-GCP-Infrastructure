@@ -18,23 +18,18 @@ variable "cidr_block" {
 	type        = string
 }
 
-variable "public_subnet_name" {
-	description = "Public subnet name."
+variable "subnet_type" {
+	description = "Subnet role in this VPC: public or private."
 	type        = string
 }
 
-variable "private_subnet_name" {
-	description = "Private subnet name."
+variable "subnet_name" {
+	description = "Subnet name in this VPC."
 	type        = string
 }
 
-variable "public_subnet_cidr" {
-	description = "Public subnet CIDR block."
-	type        = string
-}
-
-variable "private_subnet_cidr" {
-	description = "Private subnet CIDR block."
+variable "subnet_cidr" {
+	description = "Subnet CIDR block in this VPC."
 	type        = string
 }
 
@@ -48,12 +43,13 @@ variable "public_ingress_tcp_ports" {
 	type        = list(number)
 }
 
+variable "peer_cidrs" {
+	description = "Other peered VPC CIDRs allowed for east-west traffic."
+	type        = list(string)
+	default     = []
+}
+
 variable "enable_private_googleapis" {
 	description = "Enable Private Google Access for private subnet."
 	type        = bool
-}
-
-variable "service_gateway_cidr" {
-	description = "Google APIs restricted VIP route CIDR for private instances."
-	type        = string
 }

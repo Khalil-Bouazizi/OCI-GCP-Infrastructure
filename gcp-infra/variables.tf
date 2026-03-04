@@ -23,7 +23,7 @@ variable "folder_name" {
 variable "create_folder" {
 	description = "Whether to create a new folder under the organization."
 	type        = bool
-	default     = true
+	default     = false
 }
 
 variable "folder_id" {
@@ -100,6 +100,33 @@ variable "state_bucket_prefix" {
 	default     = "gcp-infra/state"
 }
 
+variable "hub_vpc_key" {
+	description = "VPC key used as HUB for local peering."
+	type        = string
+	default     = "hub"
+
+	validation {
+		condition     = contains(keys(var.vpcs), var.hub_vpc_key)
+		error_message = "hub_vpc_key must reference an existing key in vpcs."
+	}
+}
+
+variable "spoke_vpc_key" {
+	description = "VPC key used as SPOKE for local peering."
+	type        = string
+	default     = "spoke-a"
+
+	validation {
+		condition     = contains(keys(var.vpcs), var.spoke_vpc_key)
+		error_message = "spoke_vpc_key must reference an existing key in vpcs."
+	}
+
+	validation {
+		condition     = var.spoke_vpc_key != var.hub_vpc_key
+		error_message = "spoke_vpc_key must be different from hub_vpc_key."
+	}
+}
+
 variable "network_supernet_cidr" {
 	description = "Global address pool used for dynamic VPC allocation."
 	type        = string
@@ -135,6 +162,9 @@ variable "vpcs" {
 	type = map(object({
 		vpc_index                 = optional(number)
 		cidr_block                = optional(string)
+		subnet_type               = optional(string)
+		subnet_name               = optional(string)
+		subnet_cidr               = optional(string)
 		public_subnet_cidr        = optional(string)
 		private_subnet_cidr       = optional(string)
 		public_subnet_name        = optional(string)
@@ -142,7 +172,6 @@ variable "vpcs" {
 		public_ingress_cidrs      = optional(list(string), ["0.0.0.0/0"])
 		public_ingress_tcp_ports  = optional(list(number), [22])
 		enable_private_googleapis = optional(bool, true)
-		service_gateway_cidr      = optional(string, "199.36.153.8/30")
 	}))
 
 	validation {

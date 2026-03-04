@@ -11,10 +11,9 @@ module "subnets" {
 	project_id                = var.project_id
 	region                    = var.region
 	vpc_name                  = var.vpc_name
-	public_subnet_name        = var.public_subnet_name
-	private_subnet_name       = var.private_subnet_name
-	public_subnet_cidr        = var.public_subnet_cidr
-	private_subnet_cidr       = var.private_subnet_cidr
+	subnet_type               = var.subnet_type
+	subnet_name               = var.subnet_name
+	subnet_cidr               = var.subnet_cidr
 	enable_private_googleapis = var.enable_private_googleapis
 
 	depends_on = [
@@ -27,7 +26,7 @@ module "routes" {
 
 	project_id                = var.project_id
 	vpc_name                  = var.vpc_name
-	service_gateway_cidr      = var.service_gateway_cidr
+	subnet_type               = var.subnet_type
 	enable_private_googleapis = var.enable_private_googleapis
 
 	depends_on = [
@@ -40,9 +39,11 @@ module "firewall_rules" {
 
 	project_id               = var.project_id
 	vpc_name                 = var.vpc_name
+	subnet_type              = var.subnet_type
 	cidr_block               = var.cidr_block
 	public_ingress_cidrs     = var.public_ingress_cidrs
 	public_ingress_tcp_ports = var.public_ingress_tcp_ports
+	peer_cidrs               = var.peer_cidrs
 
 	depends_on = [
 		module.subnets

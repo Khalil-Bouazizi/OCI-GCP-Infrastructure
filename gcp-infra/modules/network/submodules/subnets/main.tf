@@ -6,18 +6,11 @@ module "subnets_module" {
 
 	subnets = [
 		{
-			subnet_name           = var.public_subnet_name
-			subnet_ip             = var.public_subnet_cidr
+			subnet_name           = var.subnet_name
+			subnet_ip             = var.subnet_cidr
 			subnet_region         = var.region
-			subnet_private_access = "false"
-			description           = "Public subnet for internet reachable instances"
-		},
-		{
-			subnet_name           = var.private_subnet_name
-			subnet_ip             = var.private_subnet_cidr
-			subnet_region         = var.region
-			subnet_private_access = var.enable_private_googleapis ? "true" : "false"
-			description           = "Private subnet for internal workloads"
+			subnet_private_access = var.subnet_type == "private" && var.enable_private_googleapis ? "true" : "false"
+			description           = var.subnet_type == "public" ? "Public subnet for internet reachable instances" : "Private subnet for internal workloads"
 		}
 	]
 }

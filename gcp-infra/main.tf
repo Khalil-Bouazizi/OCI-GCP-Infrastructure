@@ -25,42 +25,41 @@ locals {
 		for name, vpc in var.vpcs :
 		name => {
 			index_resolved = coalesce(try(vpc.vpc_index, null), index(local.sorted_vpc_keys, name))
+			subnet_type    = lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private"))
 
 			cidr_block = coalesce(
 				try(vpc.cidr_block, null),
 				cidrsubnet(var.network_supernet_cidr, var.vpc_newbits, coalesce(try(vpc.vpc_index, null), index(local.sorted_vpc_keys, name)))
 			)
 
-			public_subnet_cidr = coalesce(
-				try(vpc.public_subnet_cidr, null),
+			subnet_cidr = coalesce(
+				try(vpc.subnet_cidr, null),
+				try(vpc.subnet_type, null) == "public" ? try(vpc.public_subnet_cidr, null) : null,
+				try(vpc.subnet_type, null) == "private" ? try(vpc.private_subnet_cidr, null) : null,
 				cidrsubnet(
 					coalesce(
 						try(vpc.cidr_block, null),
 						cidrsubnet(var.network_supernet_cidr, var.vpc_newbits, coalesce(try(vpc.vpc_index, null), index(local.sorted_vpc_keys, name)))
 					),
 					var.subnet_newbits,
-					var.public_subnet_netnum
+					lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private")) == "public" ? var.public_subnet_netnum : var.private_subnet_netnum
 				)
 			)
 
-			private_subnet_cidr = coalesce(
-				try(vpc.private_subnet_cidr, null),
-				cidrsubnet(
-					coalesce(
-						try(vpc.cidr_block, null),
-						cidrsubnet(var.network_supernet_cidr, var.vpc_newbits, coalesce(try(vpc.vpc_index, null), index(local.sorted_vpc_keys, name)))
-					),
-					var.subnet_newbits,
-					var.private_subnet_netnum
-				)
+			subnet_name = coalesce(
+				try(vpc.subnet_name, null),
+				lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private")) == "public" ? try(vpc.public_subnet_name, null) : null,
+				lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private")) == "private" ? try(vpc.private_subnet_name, null) : null,
+				"${name}-${lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private"))}-subnet"
 			)
 
-			public_subnet_name        = coalesce(try(vpc.public_subnet_name, null), "${name}-public-subnet")
-			private_subnet_name       = coalesce(try(vpc.private_subnet_name, null), "${name}-private-subnet")
+			public_subnet_name        = lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private")) == "public" ? coalesce(try(vpc.subnet_name, null), try(vpc.public_subnet_name, null), "${name}-public-subnet") : null
+			private_subnet_name       = lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private")) == "private" ? coalesce(try(vpc.subnet_name, null), try(vpc.private_subnet_name, null), "${name}-private-subnet") : null
+			public_subnet_cidr        = lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private")) == "public" ? coalesce(try(vpc.subnet_cidr, null), try(vpc.public_subnet_cidr, null), cidrsubnet(coalesce(try(vpc.cidr_block, null), cidrsubnet(var.network_supernet_cidr, var.vpc_newbits, coalesce(try(vpc.vpc_index, null), index(local.sorted_vpc_keys, name)))), var.subnet_newbits, var.public_subnet_netnum)) : null
+			private_subnet_cidr       = lower(try(vpc.subnet_type, name == var.hub_vpc_key ? "public" : "private")) == "private" ? coalesce(try(vpc.subnet_cidr, null), try(vpc.private_subnet_cidr, null), cidrsubnet(coalesce(try(vpc.cidr_block, null), cidrsubnet(var.network_supernet_cidr, var.vpc_newbits, coalesce(try(vpc.vpc_index, null), index(local.sorted_vpc_keys, name)))), var.subnet_newbits, var.private_subnet_netnum)) : null
 			public_ingress_cidrs      = try(vpc.public_ingress_cidrs, ["0.0.0.0/0"])
 			public_ingress_tcp_ports  = try(vpc.public_ingress_tcp_ports, [22])
 			enable_private_googleapis = try(vpc.enable_private_googleapis, true)
-			service_gateway_cidr      = try(vpc.service_gateway_cidr, "199.36.153.8/30")
 		}
 	}
 
@@ -70,7 +69,7 @@ locals {
 			zone                   = coalesce(try(instance.zone, null), var.zone)
 			machine_type           = try(instance.machine_type, "e2-micro")
 			image                  = try(instance.image, "debian-cloud/debian-12")
-			subnetwork             = lower(instance.subnet_type) == "public" ? format("projects/%s/regions/%s/subnetworks/%s", local.effective_project_id, var.region, local.vpcs_resolved[instance.vpc_key].public_subnet_name) : format("projects/%s/regions/%s/subnetworks/%s", local.effective_project_id, var.region, local.vpcs_resolved[instance.vpc_key].private_subnet_name)
+			subnetwork             = format("projects/%s/regions/%s/subnetworks/%s", local.effective_project_id, var.region, local.vpcs_resolved[instance.vpc_key].subnet_name)
 			assign_public_ip       = try(instance.assign_public_ip, true)
 			disk_size_gb           = try(instance.disk_size_gb, 20)
 			network_tags           = distinct(concat(try(instance.network_tags, []), [lower(instance.subnet_type)]))
@@ -82,9 +81,10 @@ locals {
 			)
 			service_account_email  = try(instance.service_account_email, null)
 			service_account_scopes = try(instance.service_account_scopes, ["https://www.googleapis.com/auth/cloud-platform"])
-			source_image_project   = split("/", try(instance.image, "debian-cloud/debian-12"))[0]
-			source_image_family    = split("/", try(instance.image, "debian-cloud/debian-12"))[1]
+			source_image_project   = split("/", try(instance.image, "debian-cloud/debian-12"))[0] # Take the first element → project name.
+			source_image_family    = split("/", try(instance.image, "debian-cloud/debian-12"))[1] # Take the second element → image family.
 		}
+
 	}
 }
 
@@ -98,14 +98,13 @@ module "network" {
 	vpc_name   = each.key
 	cidr_block = each.value.cidr_block
 
-	public_subnet_name  = each.value.public_subnet_name
-	private_subnet_name = each.value.private_subnet_name
-	public_subnet_cidr  = each.value.public_subnet_cidr
-	private_subnet_cidr = each.value.private_subnet_cidr
+	subnet_type              = each.value.subnet_type
+	subnet_name              = each.value.subnet_name
+	subnet_cidr              = each.value.subnet_cidr
 	public_ingress_cidrs      = each.value.public_ingress_cidrs
 	public_ingress_tcp_ports  = each.value.public_ingress_tcp_ports
+	peer_cidrs                = [for peer_name, peer in local.vpcs_resolved : peer.cidr_block if peer_name != each.key]
 	enable_private_googleapis = each.value.enable_private_googleapis
-	service_gateway_cidr      = each.value.service_gateway_cidr
 
 	depends_on = [
 		google_project.project,
@@ -115,7 +114,7 @@ module "network" {
 
 module "compute" {
 	source = "./modules/compute"
-
+	
 	project_id   = local.effective_project_id
 	instances    = local.instances_resolved
 
@@ -124,8 +123,34 @@ module "compute" {
 	]
 }
 
+resource "google_compute_network_peering" "hub_to_spoke" {
+	name         = "${var.hub_vpc_key}-to-${var.spoke_vpc_key}"
+	network      = module.network[var.hub_vpc_key].vpc_self_link
+	peer_network = module.network[var.spoke_vpc_key].vpc_self_link
+
+	import_custom_routes = true
+	export_custom_routes = true
+
+	depends_on = [
+		module.network
+	]
+}
+
+resource "google_compute_network_peering" "spoke_to_hub" {
+	name         = "${var.spoke_vpc_key}-to-${var.hub_vpc_key}"
+	network      = module.network[var.spoke_vpc_key].vpc_self_link
+	peer_network = module.network[var.hub_vpc_key].vpc_self_link
+
+	import_custom_routes = true
+	export_custom_routes = true
+
+	depends_on = [
+		module.network
+	]
+}
+
 module "object_storage_bucket" {
-	source = "./modules/object-storage-bucket"
+	source = "./modules/cloud-storage-bucket"
 	count  = var.create_state_bucket ? 1 : 0
 
 	name       = coalesce(var.state_bucket_name, "${local.effective_project_id}-tfstate")

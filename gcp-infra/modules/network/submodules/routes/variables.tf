@@ -6,7 +6,7 @@ variable "vpc_name" {
 	type = string
 }
 
-variable "service_gateway_cidr" {
+variable "subnet_type" {
 	type = string
 }
 

@@ -1,0 +1,10 @@
+gcp-infra-values.auto.tfvars
+gcp-infra.tfstate
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
