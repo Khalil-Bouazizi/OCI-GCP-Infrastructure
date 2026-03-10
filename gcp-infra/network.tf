@@ -104,7 +104,7 @@ module "routes" {
 			{
 				name              = "${each.key}-private-googleapis-route"
 				description       = "Private Google APIs restricted VIP route"
-				destination_range = "199.36.153.8/30"
+				destination_range = "199.36.153.8/30" # goes to the Google API endpoint instead of normal internet routing.
 				tags              = ["private"]
 				next_hop_internet = true
 				priority          = 900
